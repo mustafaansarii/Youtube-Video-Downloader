@@ -7,17 +7,21 @@
 </head>
 <body>
     <h1>YouTube Downloader</h1>
-    <form action="/download" method="post">
+    <form action="/" method="post">
         <label for="url">Enter YouTube URL:</label><br>
         <input type="text" id="url" name="url" required><br><br>
-        
-        <label for="download_option">Select Format:</label><br>
-        <select id="download_option" name="download_option">
-            <option value="video">Video (Highest Resolution)</option>
-            <option value="mp3">MP3 (Highest Bitrate)</option>
-        </select><br><br>
-        
-        <button type="submit">Download</button>
+        <input type="radio" id="video" name="choice" value="video" checked>
+        <label for="video">Download Video</label><br>
+        <input type="radio" id="audio" name="choice" value="audio">
+        <label for="audio">Download Audio</label><br><br>
+        <input type="submit" value="Submit">
     </form>
+
+    {% if files %}
+        <h2>Downloaded Files:</h2>
+        {% for file_path, title in files %}
+            <a href="{{ file_path }}">{{ title }}</a><br>
+        {% endfor %}
+    {% endif %}
 </body>
 </html>

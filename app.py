@@ -1,42 +1,64 @@
-from flask import Flask, render_template, request, send_file
-from pytube import YouTube
-from pytube.exceptions import RegexMatchError
+from flask import Flask, render_template, request
+from pytube import Playlist, YouTube
 import os
 
 app = Flask(__name__)
 
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/download', methods=['POST'])
-def download():
-    video_url = request.form['url']
-    selected_option = request.form['download_option']
+# Function to download a single video
+def download_single_video(url, download_audio=False):
     try:
-        yt = YouTube(video_url)
-        if selected_option == 'video':
-            video_and_audio_stream = yt.streams.filter(progressive=True).order_by('resolution').desc().first()
-            if video_and_audio_stream:
-                video_path = f"{yt.title}.mp4"
-                if not os.path.exists(video_path):
-                    video_and_audio_stream.download(output_path='downloads', filename=f"{yt.title}.mp4")
-                return send_file(os.path.join('downloads', f"{yt.title}.mp4"), as_attachment=True, conditional=True, attachment_filename=f"{yt.title}.mp4")
-            else:
-                return "Error: Video and audio stream not found."
-        elif selected_option == 'mp3':
-            highest_audio_stream = yt.streams.filter(only_audio=True).order_by('bitrate').desc().first()
-            if highest_audio_stream:
-                audio_path = f"downloads/{yt.title}.mp3"
-                if not os.path.exists(audio_path):
-                    highest_audio_stream.download(output_path='downloads', filename=f"{yt.title}.mp3")
-                return send_file(os.path.join('downloads', f"{yt.title}.mp3"), as_attachment=True, conditional=True, attachment_filename=f"{yt.title}.mp3")
-            else:
-                return "Error: Audio stream not found."
+        yt = YouTube(url)
+        if download_audio:
+            stream = yt.streams.filter(only_audio=True).first()
         else:
-            return "Error: Invalid format selected."
-    except (RegexMatchError, Exception) as e:
-        return f"Error: {e}"
+            stream = yt.streams.get_highest_resolution()
+        file_path = stream.download()
+        return file_path, yt.title
+    except Exception as e:
+        print(f"Error downloading {url}: {str(e)}")
+        return None, None
+
+# Function to download videos from a playlist
+def download_playlist(url, download_audio=False):
+    playlist = Playlist(url)
+    downloaded_files = []
+
+    for video in playlist.video_urls:
+        try:
+            yt = YouTube(video)
+            if download_audio:
+                stream = yt.streams.filter(only_audio=True).first()
+            else:
+                stream = yt.streams.get_highest_resolution()
+            file_path = stream.download()
+            downloaded_files.append((file_path, yt.title))
+        except Exception as e:
+            print(f"Error downloading {yt.title}: {str(e)}")
+    
+    return downloaded_files
+
+# Determine the type of URL and download accordingly
+def download_by_url(url, download_audio=False):
+    if 'playlist' in url:
+        return download_playlist(url, download_audio)
+    else:
+        return [download_single_video(url, download_audio)]
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    files = None
+    if request.method == 'POST':
+        url = request.form['url']
+        choice = request.form['choice']
+
+        if choice == 'video':
+            files = download_by_url(url)
+        elif choice == 'audio':
+            files = download_by_url(url, download_audio=True)
+        else:
+            return "Invalid choice."
+    
+    return render_template('index.html', files=files)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5003)
